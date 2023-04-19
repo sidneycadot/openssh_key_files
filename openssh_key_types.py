@@ -10,10 +10,10 @@ class PublicKey(NamedTuple):
     """The data found in an OpenSSH public RSA-type key."""
     e: int                  # Public exponent. The default value is 0x10001 (65537).
     n: int                  # Modulus; n = p·q.
-    comment: Optional[str]  # The commend associated with the key.
+    comment: Optional[str]  # The comment associated with the key.
 
     def verify(self) -> None:
-        """Verify consistency of the public key."""
+        """Verify the consistency of the public key."""
         return
 
 
@@ -23,7 +23,7 @@ class PrivateKey(NamedTuple):
     # The fields below (up to and including the comment) are encrypted using the passphrase.
     #
     check1: int      # Identical integers check1, check2; these are compared
-    check2: int      #   after decryption to check if decryption succeeded. Also, salt values.
+    check2: int      # after decryption to check if decryption succeeded. Also, salt values.
     #
     n: int           # Modulus; n = p·q.
     e: int           # Public exponent. The default value is 0x10001 (65537).
@@ -37,7 +37,7 @@ class PrivateKey(NamedTuple):
     # Note: in the binary format, padding bytes may follow.
 
     def verify(self) -> None:
-        """Verify consistency of the private key."""
+        """Verify the consistency of the private key."""
 
         ok = (self.check1 == self.check2)
         if not ok:
@@ -211,7 +211,7 @@ class PrivateKeyBlockFound(NamedTuple):
 
 def find_ssh_rsa_keys_in_file(file_in: TextIO):
     """Find public keys and private key blocks in a given text stream."""
-    #pylint: disable=too-many-locals
+    # pylint: disable=too-many-locals
     private_key_block_first_line_number = 0  # 0 means: No private key block is currently being processed.
     private_key_block_lines = []
 

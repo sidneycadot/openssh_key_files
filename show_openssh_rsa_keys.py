@@ -11,6 +11,7 @@ import argparse
 
 from openssh_key_types import find_ssh_rsa_keys_in_file, PublicKeyFound, PrivateKeyBlockFound
 
+
 def count_digits(n: int, base: int) -> int:
     """Count the digits in a number."""
     digits = 0
@@ -77,9 +78,8 @@ def report_ssh_rsa_keys_found(filename: str, keys_found, verbosity: int) -> None
     print("end-of-file ('{:s}')".format(filename))
 
 
-
 def main():
-    """Main function."""
+    """The main function of the tool."""
     parser = argparse.ArgumentParser(description="Show info on OpenSSH RSA keys.")
 
     parser.add_argument("-v", "--verbose", action="store_true", help="verbose output")
