@@ -3,7 +3,7 @@
 import io
 import re
 import base64
-from typing import NamedTuple, List, Optional, BinaryIO, TextIO
+from typing import NamedTuple, Optional, BinaryIO, TextIO
 
 
 class PublicKey(NamedTuple):
@@ -13,10 +13,12 @@ class PublicKey(NamedTuple):
     comment: Optional[str]  # The commend associated with the key.
 
     def verify(self) -> None:
-        pass
+        """Verify consistency of the public key."""
+        return
 
 
 class PrivateKey(NamedTuple):
+    """The data in an OpenSSH private RS-type key."""
     #
     # The fields below (up to and including the comment) are encrypted using the passphrase.
     #
@@ -35,7 +37,7 @@ class PrivateKey(NamedTuple):
     # Note: in the binary format, padding bytes may follow.
 
     def verify(self) -> None:
-        """Verify consistency of private key."""
+        """Verify consistency of the private key."""
 
         ok = (self.check1 == self.check2)
         if not ok:
@@ -70,12 +72,13 @@ class PrivateKeyBlock(NamedTuple):
     private_key: PrivateKey    # May be encrypted (if a passphrase is used.)
 
     def verify(self):
+        """Verify consistency of the data in the private key block."""
         self.public_key.verify()
         self.private_key.verify()
 
 
 def octets_to_int(octets: bytes) -> int:
-    """Read a big-endian encoded unsigned integer."""
+    """Convert bytes to an unsigned integer."""
     value = 0
     for octet in octets:
         value = value * 0x100 + octet
@@ -83,39 +86,47 @@ def octets_to_int(octets: bytes) -> int:
 
 
 def utf8_octets_to_string(utf8_octets: bytes) -> str:
+    """Convert bytes to a string."""
     return utf8_octets.decode('utf-8')
 
 
 def read_binary_fixed_size_blob(fi: BinaryIO, size: int) -> bytes:
+    """Read a fixed-size binary blob."""
     return fi.read(size)
 
 
 def read_binary_fixed_size_integer(fi: BinaryIO, size: int) -> int:
+    """Read a fixed-size integer."""
     octets = read_binary_fixed_size_blob(fi, size)
     return octets_to_int(octets)
 
 
 def read_binary_fixed_size_string(fi: BinaryIO, size: int) -> str:
+    """Read a fixed-size string."""
     utf8_octets = read_binary_fixed_size_blob(fi, size)
     return utf8_octets_to_string(utf8_octets)
 
 
 def read_binary_variable_size_blob(fi: BinaryIO) -> bytes:
+    """Read a variable-size binary blob."""
     size = read_binary_fixed_size_integer(fi, 4)
     return read_binary_fixed_size_blob(fi, size)
 
 
 def read_binary_variable_size_integer(fi: BinaryIO) -> int:
+    """Read a variable-size integer."""
     octets = read_binary_variable_size_blob(fi)
     return octets_to_int(octets)
 
 
 def read_binary_variable_size_string(fi: BinaryIO) -> str:
+    """Read a variable-size string."""
     utf8_octets = read_binary_variable_size_blob(fi)
     return utf8_octets_to_string(utf8_octets)
 
 
 def read_binary_public_key(fi: BinaryIO, comment: Optional[str]) -> PublicKey:
+    """Read a public key."""
 
     key_type = read_binary_variable_size_string(fi)
     if key_type != "ssh-rsa":
@@ -128,6 +139,7 @@ def read_binary_public_key(fi: BinaryIO, comment: Optional[str]) -> PublicKey:
 
 
 def read_binary_private_key(fi: BinaryIO) -> PrivateKey:
+    """Read a private key."""
 
     check1 = read_binary_fixed_size_integer(fi, 4)
     check2 = read_binary_fixed_size_integer(fi, 4)
@@ -154,6 +166,7 @@ def read_binary_private_key(fi: BinaryIO) -> PrivateKey:
 
 
 def read_binary_private_key_block(fi: BinaryIO) -> PrivateKeyBlock:
+    """Read a private key block."""
 
     auth_magic = read_binary_fixed_size_string(fi, 15)
     if auth_magic != "openssh-key-v1\x00":
@@ -183,11 +196,13 @@ def read_binary_private_key_block(fi: BinaryIO) -> PrivateKeyBlock:
 
 
 class PublicKeyFound(NamedTuple):
+    """A public key that was found in a text stream."""
     line_number: int
     key: PublicKey
 
 
 class PrivateKeyBlockFound(NamedTuple):
+    """A private key block that was found in a text stream."""
     first_line_number: int
     last_line_number: int
     bad_lines_skipped: int
@@ -195,7 +210,8 @@ class PrivateKeyBlockFound(NamedTuple):
 
 
 def find_ssh_rsa_keys_in_file(file_in: TextIO):
-
+    """Find public keys and private key blocks in a given text stream."""
+    #pylint: disable=too-many-locals
     private_key_block_first_line_number = 0  # 0 means: No private key block is currently being processed.
     private_key_block_lines = []
 

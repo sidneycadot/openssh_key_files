@@ -1,11 +1,11 @@
 #! /usr/bin/env -S python3 -u
 
-from gmpy2 import is_prime
 import math
 import base64
 import io
 from typing import NamedTuple, Optional, BinaryIO
 
+from gmpy2 import is_prime
 
 def write_fixed_size_integer(fo: BinaryIO, n: int, size: int) -> None:
     blob = n.to_bytes(length=size, byteorder='big', signed=False)
@@ -89,7 +89,7 @@ class openssh_rsa_key(NamedTuple):
             write_variable_size_string(fo, kdfname)
             write_variable_size_string(fo, kdf)
             write_fixed_size_integer(fo, number_of_keys, 4)
-            
+
             encoded_public_key = self.encode_public_key()
             write_variable_size_blob(fo, encoded_public_key)
 
@@ -141,11 +141,12 @@ def count_end_character(s):
     for size in range(len(s), 0, -1):
         if s.endswith(size * last_character):
             return size
+    raise RuntimeError()
 
 def find_working_key():
     # |ZZZ|Zsh|a-r|saZ|ZZZ|eee|ZZZ|Znn|nnn|nnn|nnn|nnn|nnn|nnn|nnn
     # AAAA
-    #     B3Nz    
+    #     B3Nz
     #         aC1y
     #             c2EA
     #                 AAAD

@@ -7,23 +7,21 @@ Both public and private key files are supported.
 The implementation only handles unencrypted private keys (i.e., keys without a passphrase).
 """
 
-import re
 import argparse
-import io
-import base64
-from typing import TextIO, NamedTuple
 
 from openssh_key_types import find_ssh_rsa_keys_in_file, PublicKeyFound, PrivateKeyBlockFound
 
 def count_digits(n: int, base: int) -> int:
+    """Count the digits in a number."""
     digits = 0
     while n != 0:
-        n //= base;
+        n //= base
         digits += 1
     return digits
 
 
 def number_as_string(n: int, verbosity: int):
+    """Represent a number as a decimal string."""
     s = str(n)
     if len(s) > 15 and verbosity < 1:
         s = "{:s}xxxxx{:s}".format(s[:5], s[-5:])
@@ -35,7 +33,8 @@ def number_as_string(n: int, verbosity: int):
     return s + " " + suffix
 
 
-def report_private_key_collection(filename: str, found: PrivateKeyBlockFound, verbosity: int) -> None:
+def report_private_key_block(found: PrivateKeyBlockFound, verbosity: int) -> None:
+    """Print report for a private key block."""
     print("    private-key-block (lines {:d}-{:d}):".format(found.first_line_number, found.last_line_number))
     print("        cipher ........... : '{:s}'".format(found.block.ciphername))
     print("        kdfname .......... : '{:s}'".format(found.block.kdfname))
@@ -58,28 +57,29 @@ def report_private_key_collection(filename: str, found: PrivateKeyBlockFound, ve
     print("    end-of-private-key-block (lines {:d}-{:d})".format(found.first_line_number, found.last_line_number))
 
 
-def report_public_key(filename: str, key_found: PublicKeyFound, verbosity: int) -> None:
-    print("    public-key (line {:d}):".format(key_found.line_number))
-    print("        e ............ : {:s}".format(number_as_string(key_found.key.e, verbosity)))
-    print("        n ............ : {:s}".format(number_as_string(key_found.key.n, verbosity)))
-    print("        comment ...... : '{:s}'".format(key_found.key.comment))
-    print("    end-of-public-key (line {:d})".format(key_found.line_number))
+def report_public_key(found: PublicKeyFound, verbosity: int) -> None:
+    """Print report for a public key."""
+    print("    public-key (line {:d}):".format(found.line_number))
+    print("        e ............ : {:s}".format(number_as_string(found.key.e, verbosity)))
+    print("        n ............ : {:s}".format(number_as_string(found.key.n, verbosity)))
+    print("        comment ...... : '{:s}'".format(found.key.comment))
+    print("    end-of-public-key (line {:d})".format(found.line_number))
 
 
 def report_ssh_rsa_keys_found(filename: str, keys_found, verbosity: int) -> None:
-
+    """Print report for a public keys and private key blocks found."""
     print("file ('{:s}'):".format(filename))
-    for key_found in keys_found:
-        if isinstance(key_found, PublicKeyFound):
-            report_public_key(filename, key_found, verbosity)
-        elif isinstance(key_found, PrivateKeyBlockFound):
-            report_private_key_collection(filename, key_found, verbosity)
+    for found in keys_found:
+        if isinstance(found, PublicKeyFound):
+            report_public_key(found, verbosity)
+        elif isinstance(found, PrivateKeyBlockFound):
+            report_private_key_block(found, verbosity)
     print("end-of-file ('{:s}')".format(filename))
 
 
 
 def main():
-
+    """Main function."""
     parser = argparse.ArgumentParser(description="Show info on OpenSSH RSA keys.")
 
     parser.add_argument("-v", "--verbose", action="store_true", help="verbose output")
@@ -88,10 +88,10 @@ def main():
     args = parser.parse_args()
 
     for filename in args.filenames:
-        with open(filename, "r") as fi:
+        with open(filename, "r", encoding='ascii') as fi:
             keys_found = list(find_ssh_rsa_keys_in_file(fi))
 
-    report_ssh_rsa_keys_found(filename, keys_found, int(args.verbose))
+        report_ssh_rsa_keys_found(filename, keys_found, int(args.verbose))
 
 
 if __name__ == "__main__":
