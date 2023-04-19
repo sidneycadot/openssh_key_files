@@ -1,9 +1,14 @@
-"""Types for representing OpenSSH RSA keys, and corresponding read/write functionality."""
+"""Types for representing OpenSSH RSA keys, and corresponding read/write functionality.
+
+References:
+- https://github.com/openssh/openssh-portable/blob/master/PROTOCOL.key
+- https://dnaeon.github.io/openssh-private-key-binary-format/
+"""
 
 import io
 import re
 import base64
-from typing import NamedTuple, Optional, BinaryIO, TextIO
+from typing import List, NamedTuple, Optional, BinaryIO, TextIO
 
 
 class PublicKey(NamedTuple):
@@ -16,32 +21,28 @@ class PublicKey(NamedTuple):
         """Verify the consistency of the public key."""
         return
 
+class PublicKeyList(NamedTuple):
+    """A list of public keys."""
+    keys: List[PublicKey]
+
+    def verify(self) -> None:
+        """Verify the consistency of the public keys."""
+        for key in self.keys:
+            key.verify()
+
 
 class PrivateKey(NamedTuple):
-    """The data in an OpenSSH private RS-type key."""
-    #
-    # The fields below (up to and including the comment) are encrypted using the passphrase.
-    #
-    check1: int      # Identical integers check1, check2; these are compared
-    check2: int      # after decryption to check if decryption succeeded. Also, salt values.
-    #
+    """The data in an OpenSSH private RSA-type key."""
     n: int           # Modulus; n = p·q.
     e: int           # Public exponent. The default value is 0x10001 (65537).
     d: int           # Secret exponent. Derived from (n, e); (e·d) ≡ 1 (mod λ(n)).
     iqmp: int        # Modular inverse of q (mod p): q·iqmp ≡ 1 (mod p).
     p: int           # First prime factor (secret).
     q: int           # Second prime factor (secret).
-    #
     comment: str     # A comment that goes along with the key.
-    #
-    # Note: in the binary format, padding bytes may follow.
 
     def verify(self) -> None:
         """Verify the consistency of the private key."""
-
-        ok = (self.check1 == self.check2)
-        if not ok:
-            raise ValueError("Bad check values.")
 
         ok = (self.n == self.p * self.q)
         if not ok:
@@ -58,6 +59,29 @@ class PrivateKey(NamedTuple):
             raise ValueError("RSA check failed: q·iqmp ≡ 1 (mod p).")
 
 
+class PrivateKeyList(NamedTuple):
+    """The data in an OpenSSH private RS-type key."""
+    #
+    # The fields below (up to and including the comment) are encrypted using the passphrase.
+    #
+    check1: int  # Identical integers check1, check2; these are compared
+    check2: int  # after decryption to check if decryption succeeded. Also, salt values.
+    #
+    keys: List[PrivateKey]
+    #
+    # In the binary format, padding bytes may follow to make sure the size of the
+    # encrypted private key list is a multiple of the cipher's block size.
+
+    def verify(self) -> None:
+        """Verify the consistency of the private key list."""
+
+        ok = (self.check1 == self.check2)
+        if not ok:
+            raise ValueError("Bad check values.")
+
+        for key in self.keys:
+            key.verify()
+
 
 class PrivateKeyBlock(NamedTuple):
     """The data found in an OpenSSH private RSA-type key.
@@ -66,15 +90,16 @@ class PrivateKeyBlock(NamedTuple):
     However, this is not used by OpenSSH, and we do not support it.
     """
     ciphername: str            # Name of cipher to be applied. We can only handle "none" at this time.
-    kdfname: str               # TODO: what is this?
-    kdf: str                   # TODO: what is this?
-    public_key: PublicKey
-    private_key: PrivateKey    # May be encrypted (if a passphrase is used.)
+    kdfname: str               # KDF (Key Derivation Function) name: "none" or "bcrypt".
+    kdfoptions: bytes
+
+    public_key_list: PublicKeyList    # Not encrypted.
+    private_key_list: PrivateKeyList  # May be encrypted (if a passphrase is used.)
 
     def verify(self):
         """Verify consistency of the data in the private key block."""
-        self.public_key.verify()
-        self.private_key.verify()
+        self.public_key_list.verify()
+        self.private_key_list.verify()
 
 
 def octets_to_int(octets: bytes) -> int:
@@ -85,14 +110,38 @@ def octets_to_int(octets: bytes) -> int:
     return value
 
 
+def int_to_octets(n: int) -> bytes:
+    """Convert an unsigned integer to bytes."""
+    octets = []
+    while n != 0:
+        octets.append(n % 0x100)
+        n //= 0x100
+
+    # The sign bit of the most-significant byte should be 0.
+    # If not, we will add an extra zero byte.
+    if len(octets) != 0 and octets[-1] >= 0x80:
+        octets.append(0x00)
+    return bytes(reversed(octets))
+
+
 def utf8_octets_to_string(utf8_octets: bytes) -> str:
     """Convert bytes to a string."""
     return utf8_octets.decode('utf-8')
 
 
+def string_to_utf8_octets(s: str) -> bytes:
+    """Convert string to bytes."""
+    return s.encode('utf-8')
+
+
 def read_binary_fixed_size_blob(fi: BinaryIO, size: int) -> bytes:
     """Read a fixed-size binary blob."""
     return fi.read(size)
+
+
+def write_binary_fixed_size_blob(fo: BinaryIO, blob: bytes) -> None:
+    """Write a fixed-size binary blob."""
+    fo.write(blob)
 
 
 def read_binary_fixed_size_integer(fi: BinaryIO, size: int) -> int:
@@ -101,10 +150,28 @@ def read_binary_fixed_size_integer(fi: BinaryIO, size: int) -> int:
     return octets_to_int(octets)
 
 
+def write_binary_fixed_size_integer(fo: BinaryIO, n: int, size: int) -> None:
+    """Write a fixed-size integer."""
+    octets = []
+    while len(octets) < size:
+        octets.append(n % 0x100)
+        n //= 0x100
+    if n != 0:
+        raise RuntimeError("Integer value does not fit.")
+    blob = bytes(reversed(octets))
+    write_binary_fixed_size_blob(fo, blob)
+
+
 def read_binary_fixed_size_string(fi: BinaryIO, size: int) -> str:
     """Read a fixed-size string."""
     utf8_octets = read_binary_fixed_size_blob(fi, size)
     return utf8_octets_to_string(utf8_octets)
+
+
+def write_binary_fixed_size_string(fo: BinaryIO, s: str) -> None:
+    """Write a fixed-size string."""
+    utf8_octets = string_to_utf8_octets(s)
+    write_binary_fixed_size_blob(fo, utf8_octets)
 
 
 def read_binary_variable_size_blob(fi: BinaryIO) -> bytes:
@@ -113,10 +180,23 @@ def read_binary_variable_size_blob(fi: BinaryIO) -> bytes:
     return read_binary_fixed_size_blob(fi, size)
 
 
+def write_binary_variable_size_blob(fo: BinaryIO, blob: bytes) -> None:
+    """Write a variable-size binary blob."""
+    size = len(blob)
+    write_binary_fixed_size_integer(fo, size, 4)
+    write_binary_fixed_size_blob(fo, blob)
+
+
 def read_binary_variable_size_integer(fi: BinaryIO) -> int:
     """Read a variable-size integer."""
     octets = read_binary_variable_size_blob(fi)
     return octets_to_int(octets)
+
+
+def write_binary_variable_size_integer(fo: BinaryIO, n: int) -> None:
+    """Write a variable-size integer."""
+    octets = int_to_octets(n)
+    write_binary_variable_size_blob(fo, octets)
 
 
 def read_binary_variable_size_string(fi: BinaryIO) -> str:
@@ -125,9 +205,14 @@ def read_binary_variable_size_string(fi: BinaryIO) -> str:
     return utf8_octets_to_string(utf8_octets)
 
 
+def write_binary_variable_size_string(fo: BinaryIO, s: str) -> None:
+    """Write a variable-size string."""
+    utf8_octets = string_to_utf8_octets(s)
+    write_binary_variable_size_blob(fo, utf8_octets)
+
+
 def read_binary_public_key(fi: BinaryIO, comment: Optional[str]) -> PublicKey:
     """Read a public key."""
-
     key_type = read_binary_variable_size_string(fi)
     if key_type != "ssh-rsa":
         raise NotImplementedError("We cannot handle keys of type '{:s}'".format(key_type))
@@ -138,11 +223,34 @@ def read_binary_public_key(fi: BinaryIO, comment: Optional[str]) -> PublicKey:
     return PublicKey(e, n, comment)
 
 
+def write_binary_public_key(fo: BinaryIO, key: PublicKey) -> None:
+    """Write binary public key."""
+    write_binary_variable_size_string(fo, "ssh-rsa")
+    write_binary_variable_size_integer(fo, key.e)
+    write_binary_variable_size_integer(fo, key.n)
+
+
+def read_binary_public_key_list(fi: BinaryIO, number_of_keys: int) -> PublicKeyList:
+    """Read a public key list."""
+
+    keys = [read_binary_public_key(fi, None) for i in range(number_of_keys)]
+
+    remaining_bytes = fi.read()
+    if len(remaining_bytes) != 0:
+        raise RuntimeError("Unexpected bytes at the end.")
+
+    return PublicKeyList(keys)
+
+
+def write_binary_public_key_list(fo: BinaryIO, public_key_list: PublicKeyList) -> None:
+    """Write a public key list."""
+
+    for key in public_key_list.keys:
+        write_binary_public_key(fo, key)
+
+
 def read_binary_private_key(fi: BinaryIO) -> PrivateKey:
     """Read a private key."""
-
-    check1 = read_binary_fixed_size_integer(fi, 4)
-    check2 = read_binary_fixed_size_integer(fi, 4)
 
     key_type = read_binary_variable_size_string(fi)
     if key_type != "ssh-rsa":
@@ -156,13 +264,68 @@ def read_binary_private_key(fi: BinaryIO) -> PrivateKey:
     q       = read_binary_variable_size_integer(fi)
     comment = read_binary_variable_size_string(fi)
 
-    # The remainder are padding bytes.
-    padding = fi.read()
+    return PrivateKey(n, e, d, iqmp, p, q, comment)
+
+
+def write_binary_private_key(fo: BinaryIO, key: PrivateKey) -> None:
+    """Write a private key."""
+
+    write_binary_variable_size_string(fo, "ssh-rsa")
+    write_binary_variable_size_integer(fo, key.n)
+    write_binary_variable_size_integer(fo, key.e)
+    write_binary_variable_size_integer(fo, key.d)
+    write_binary_variable_size_integer(fo, key.iqmp)
+    write_binary_variable_size_integer(fo, key.p)
+    write_binary_variable_size_integer(fo, key.q)
+    write_binary_variable_size_string(fo, key.comment)
+
+
+def read_binary_private_key_list(fi: BinaryIO, number_of_keys: int) -> PrivateKeyList:
+    """Read a private key list."""
+
+    offset_1 = fi.tell()
+
+    check1 = read_binary_fixed_size_integer(fi, 4)
+    check2 = read_binary_fixed_size_integer(fi, 4)
+
+    keys = [read_binary_private_key(fi) for i in range(number_of_keys)]
+
+    offset_2 = fi.tell()
+
+    block_size = 8  # For "none" cipher.
+    padding_size = -(offset_2 - offset_1) % block_size
+
+    padding = read_binary_fixed_size_blob(fi, padding_size)
 
     if not all(padding[i] == (i + 1) % 0x100 for i in range(len(padding))):
         raise ValueError("Bad padding bytes.")
 
-    return PrivateKey(check1, check2, n, e, d, iqmp, p, q, comment)
+    remaining_bytes = fi.read()
+    if len(remaining_bytes) != 0:
+        raise RuntimeError("Unexpected bytes at the end.")
+
+    return PrivateKeyList(check1, check2, keys)
+
+
+def write_binary_private_key_list(fo: BinaryIO, private_key_list: PrivateKeyList) -> None:
+    """Write a private key list."""
+
+    offset_1 = fo.tell()
+
+    write_binary_fixed_size_integer(fo, private_key_list.check1, 4)
+    write_binary_fixed_size_integer(fo, private_key_list.check2, 4)
+
+    for key in private_key_list.keys:
+        write_binary_private_key(fo, key)
+
+    offset_2 = fo.tell()
+
+    block_size = 8  # For "none" cipher.
+    padding_size = -(offset_2 - offset_1) % block_size
+
+    padding = bytes((i + 1) % 0x100 for i in range(padding_size))
+
+    write_binary_fixed_size_blob(fo, padding)
 
 
 def read_binary_private_key_block(fi: BinaryIO) -> PrivateKeyBlock:
@@ -176,23 +339,45 @@ def read_binary_private_key_block(fi: BinaryIO) -> PrivateKeyBlock:
     if ciphername != "none":
         raise NotImplementedError("We cannot handle the '{:s}' cipher.".format(ciphername))
 
-    # TODO: understand what these are used for.
     kdfname = read_binary_variable_size_string(fi)
-    kdf     = read_binary_variable_size_string(fi)
+    kdfoptions = read_binary_variable_size_blob(fi)
 
     number_of_keys = read_binary_fixed_size_integer(fi, 4)
-    if number_of_keys != 1:
-        raise NotImplementedError("We only support private key blocks with a single public/private key pair.")
 
-    blob = read_binary_variable_size_blob(fi)
-    with io.BytesIO(blob) as fi_public_key:
-        public_key = read_binary_public_key(fi_public_key, None)
+    public_keys_blob = read_binary_variable_size_blob(fi)
+    with io.BytesIO(public_keys_blob) as fi_public_keys:
+        public_keys = read_binary_public_key_list(fi_public_keys, number_of_keys)
 
-    blob = read_binary_variable_size_blob(fi)
-    with io.BytesIO(blob) as fi_private_key:
-        private_key = read_binary_private_key(fi_private_key)
+    private_keys_blob = read_binary_variable_size_blob(fi)
+    with io.BytesIO(private_keys_blob) as fi_private_keys:
+        private_keys = read_binary_private_key_list(fi_private_keys, number_of_keys)
 
-    return PrivateKeyBlock(ciphername, kdfname, kdf, public_key, private_key)
+    return PrivateKeyBlock(ciphername, kdfname, kdfoptions, public_keys, private_keys)
+
+
+def write_binary_private_key_block(fo: BinaryIO, block: PrivateKeyBlock) -> None:
+    """Write a private key block."""
+
+    if len(block.public_key_list.keys) != len(block.private_key_list.keys):
+        raise RuntimeError()
+
+    number_of_keys = len(block.public_key_list)
+
+    write_binary_fixed_size_string(fo, "openssh-key-v1\x00")
+    write_binary_variable_size_string(fo, block.ciphername)
+    write_binary_variable_size_string(fo, block.kdfname)
+    write_binary_variable_size_blob(fo, block.kdfoptions)
+    write_binary_fixed_size_integer(fo, number_of_keys, 4)
+
+    with io.BytesIO() as f_public_key_envelope:
+        write_binary_public_key_list(f_public_key_envelope, block.public_key_list)
+        public_key_envelope = f_public_key_envelope.getvalue()
+    write_binary_variable_size_blob(fo, public_key_envelope)
+
+    with io.BytesIO() as f_private_key_envelope:
+        write_binary_private_key_list(f_private_key_envelope, block.private_key_list)
+        private_key_envelope = f_private_key_envelope.getvalue()
+    write_binary_variable_size_blob(fo, private_key_envelope)
 
 
 class PublicKeyFound(NamedTuple):
@@ -246,7 +431,6 @@ def find_ssh_rsa_keys_in_file(file_in: TextIO):
                 private_key_base64_string = "".join(private_key_block_lines)
 
                 blob = base64.b64decode(private_key_base64_string)
-
                 with io.BytesIO(blob) as fi:
                     block = read_binary_private_key_block(fi)
                 bad_line_count = line_number - private_key_block_first_line_number - 1 - len(private_key_block_lines)
@@ -261,3 +445,32 @@ def find_ssh_rsa_keys_in_file(file_in: TextIO):
                 match = regexp_private_key_line.fullmatch(line)
                 if match is not None:
                     private_key_block_lines.append(line)
+
+
+def write_private_key_block(fo: TextIO, block: PrivateKeyBlock) -> None:
+    """Write a private key block."""
+    with io.BytesIO() as fo_binary:
+        write_binary_private_key_block(fo_binary, block)
+        binary_private_key_block = fo_binary.getvalue()
+
+    base64_encoded_private_key_block = base64.b64encode(binary_private_key_block).decode('ascii')
+
+    print("-----BEGIN OPENSSH PRIVATE KEY-----", file=fo)
+
+    max_line_size = 70
+    offset = 0
+    while offset < len(base64_encoded_private_key_block):
+        print(base64_encoded_private_key_block[offset:offset + max_line_size], file=fo)
+        offset += max_line_size
+
+    print("-----END OPENSSH PRIVATE KEY-----", file=fo)
+
+
+def write_public_key(fo: TextIO, key: PublicKey) -> None:
+    """Read a private key block."""
+    with io.BytesIO() as fo_binary:
+        write_binary_public_key(fo_binary, key)
+        binary_public_key = fo_binary.getvalue()
+
+    base64_encoded_public_key = base64.b64encode(binary_public_key).decode('ascii')
+    print("ssh-rsa {:s} {:s}".format(base64_encoded_public_key, key.comment), file=fo)
