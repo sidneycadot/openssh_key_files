@@ -401,7 +401,7 @@ def find_ssh_rsa_keys_in_file(file_in: TextIO):
     private_key_block_lines = []
 
     regexp_private_key_line = re.compile("[A-Za-z0-9+/]+=*")
-    regexp_public_key_line  = re.compile("ssh-rsa +([A-Za-z0-9+/]+=*) +(.*)")
+    regexp_public_key_line  = re.compile("ssh-rsa +([A-Za-z0-9+/]+=*) *(.*)")
 
     for (line_number, line) in enumerate(file_in, 1):
         line = line.strip()
@@ -473,4 +473,8 @@ def write_public_key(fo: TextIO, key: PublicKey) -> None:
         binary_public_key = fo_binary.getvalue()
 
     base64_encoded_public_key = base64.b64encode(binary_public_key).decode('ascii')
-    print("ssh-rsa {:s} {:s}".format(base64_encoded_public_key, key.comment), file=fo)
+
+    if len(key.comment) == 0:
+        print("ssh-rsa {:s}".format(base64_encoded_public_key), file=fo)
+    else:
+        print("ssh-rsa {:s} {:s}".format(base64_encoded_public_key, key.comment), file=fo)
