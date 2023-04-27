@@ -5,6 +5,7 @@ References:
 - https://dnaeon.github.io/openssh-private-key-binary-format/
 """
 
+import math
 import io
 import re
 import base64
@@ -48,9 +49,9 @@ class PrivateKey(NamedTuple):
         if not ok:
             raise ValueError("RSA check failed: (n = p·q).")
 
-        carmichael_lambda = (self.p - 1) * (self.q - 1)
+        carmichael_lambda = math.lcm(self.p - 1, self.q - 1)
 
-        ok = (self.e * self.d % carmichael_lambda == 1)
+        ok = (self.e * self.d) % carmichael_lambda == 1
         if not ok:
             raise ValueError("RSA check failed: d·e ≡ 1 (mod λ(n)).")
 
@@ -466,7 +467,7 @@ def write_private_key_block(fo: TextIO, block: PrivateKeyBlock) -> None:
     print("-----END OPENSSH PRIVATE KEY-----", file=fo)
 
 
-def write_public_key(fo: TextIO, key: PublicKey) -> None:
+def write_public_key(fo: TextIO, key: PublicKey, end: str='\n') -> None:
     """Read a private key block."""
     with io.BytesIO() as fo_binary:
         write_binary_public_key(fo_binary, key)
@@ -475,6 +476,6 @@ def write_public_key(fo: TextIO, key: PublicKey) -> None:
     base64_encoded_public_key = base64.b64encode(binary_public_key).decode('ascii')
 
     if len(key.comment) == 0:
-        print("ssh-rsa {:s}".format(base64_encoded_public_key), file=fo)
+        print("ssh-rsa {:s}".format(base64_encoded_public_key), file=fo, end=end)
     else:
-        print("ssh-rsa {:s} {:s}".format(base64_encoded_public_key, key.comment), file=fo)
+        print("ssh-rsa {:s} {:s}".format(base64_encoded_public_key, key.comment), file=fo, end=end)
