@@ -1,10 +1,19 @@
 #! /usr/bin/env -S python3 -B
 
-"""
-Scientific American, August 1977
-"Mathematical Games" column: "A new kind of cipher that would take millions of years to break" by Martin Gardner.
+"""The August 1977 issue of Scientific American featured a 'Mathematical Games' column by Martin Garner
+about the RSA cipher, titled "A new kind of cipher that would take millions of years to break".
 
-See: https://simson.net/ref/1977/Gardner_RSA.pdf
+  See: https://simson.net/ref/1977/Gardner_RSA.pdf
+
+This column proposed the challenge of factoring a 129-digit number in order to break RSA and win 100 US
+dollars.
+
+The factorization was announced in 1994 later by 4 prominent number theory researchers, who factored the
+number using the Quadratic Sieve algorithm.
+
+Below, we replicate the calculation presented in the column, based on the knowledge of the prime factors of
+RSA-129 and the secret message.
+
 """
 
 import math
