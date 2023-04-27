@@ -1,4 +1,4 @@
-#! /usr/bin/env -S python3 -u
+#! /usr/bin/env -S python3 -B
 
 """Given values p and q, write private and public RSA key-files."""
 
@@ -33,6 +33,7 @@ def main():
 
     d = calculate_d(e, p, q)
     iqmp = calculate_iqmp(p, q)
+
 
     # ----- Construct OpenSSH types.
 
