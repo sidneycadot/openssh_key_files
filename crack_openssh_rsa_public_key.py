@@ -1,6 +1,17 @@
 #! /usr/bin/env -S python3 -B
 
-"""Given a public key, find the corresponding private key."""
+"""Given a public key, find the corresponding private key.
+
+This script does all the "easy" steps of decoding a public key, handing over the
+number 'n' to a factorization algorithm, and re-assembling the factorized number into
+a private key.
+
+The "hard" step of cracking SSH keys is, of course, the factoring.
+
+To turn this program into a tool to crack secure RSA keys, it will be necessary to
+implement an improved factoring algorithm. Nevertheless, it is instructive to see
+all steps other than the factoring written out.
+"""
 
 import argparse
 import contextlib
