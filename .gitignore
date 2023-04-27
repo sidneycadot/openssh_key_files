@@ -1,2 +1,3 @@
-regenerate_key
-regenerate_key.pub
+.idea
+openssh-portable
+*.pub
