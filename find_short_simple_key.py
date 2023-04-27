@@ -1,38 +1,22 @@
-#! /usr/bin/env -S python3 -u
+#! /usr/bin/env -S python3 -B
+
+"""Find a short, easy-to-remember key.
+
+NOTE: This needs work.
+"""
 
 import io
-import math
 import base64
-from typing import NamedTuple, Tuple, Optional, BinaryIO
 
 from gmpy2 import is_prime
 
 from openssh_key_types import PublicKey, write_binary_public_key
 
-def extended_gcd(a, b) -> Tuple[int, int, int]:
-    (gcd, r) = (a, b)  # becomes gcd(a, b)
-    (ac, s) = (1, 0)   # the coefficient of a
-    (bc, t) = (0, 1)   # the coefficient of b
-    while r != 0:
-        q = gcd // r
-        (gcd, r) = (r, gcd % r)
-        (ac, s) = (s, ac - q * s)
-        (bc, t) = (t, bc - q * t)
 
-    # Reduce ac and bc in this way so that ac is positive and bc is negative.
-
-    ac %= ( b // gcd)
-    bc %= (-a // gcd)
-
-    return (ac, bc, gcd)
-
-
-def calculate_d(e: int, p: int, q: int):
-    totient = math.lcm(p - 1, q - 1)
-    return extended_gcd(e, totient)[0]
-
-
-def count_end_character(s):
+def count_end_character(s: str) -> int:
+    """Find the number of identical characters at the end of the string."""
+    if len(s) == 0:
+        raise ValueError()
     last_character = s[-1]
     for size in range(len(s), 0, -1):
         if s.endswith(size * last_character):
@@ -41,6 +25,8 @@ def count_end_character(s):
 
 
 def find_working_key():
+    """Find a short but valid key."""
+
     # |ZZZ|Zsh|a-r|saZ|ZZZ|eee|ZZZ|Znn|nnn|nnn|nnn|nnn|nnn|nnn|nnn
     # AAAA
     #     B3Nz
@@ -56,9 +42,7 @@ def find_working_key():
     #                                           1   2    3    4    5    6     7    8   9    10    11   12   13   14  15   16   17   18   19   20   21   22   23   24   25   26   27   28   29   30   31   32   33   34   35   36   37   38   39   40   41   42
     min_n = 2**1024
 
-    p_candidates = [k for k in range(1000) if is_prime(k)]
-
-    for p in range(100, 1000000000):
+    for p in range(191, 1000000000):
         if not is_prime(p):
             continue
 
@@ -98,8 +82,7 @@ def find_working_key():
                         continue
 
                     e = 65537
-                    d = calculate_d(e, p, q)
-                                
+
                     public_key = PublicKey(
                         n = p * q,
                         e = e,
@@ -120,8 +103,9 @@ def find_working_key():
                     print(public_key_base64)
                     print("---------------")
 
-def main():
 
+def main():
+    """Main function."""
     find_working_key()
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-"""RSA math."""
+"""Math routines for handling RSA private and public keys."""
 
 import math
 
@@ -6,6 +6,7 @@ from typing import Tuple
 
 
 def is_prime(n: int) -> bool:
+    """Check if the given integer is prime by trial division."""
     d = 2
     while d * d <= n:
         if n % d == 0:
@@ -15,14 +16,17 @@ def is_prime(n: int) -> bool:
 
 
 def next_prime(n: int) -> int:
+    """Find the next-largest prime greater than n."""
     while True:
         n += 1
         if is_prime(n):
             return n
 
 
-def factor(n):
-    """TODO: Insert quantum computer right about here."""
+def factor(n: int) -> Tuple[int, int]:
+    """Find a factorization of n.
+
+    TODO: Insert quantum computer right about here."""
     p = 2
     while n % p != 0:
         p = next_prime(p)
@@ -31,6 +35,11 @@ def factor(n):
 
 
 def extended_gcd(a, b) -> Tuple[int, int, int]:
+    """Calculate ac and bc such that:
+
+    ac * a + bc * b == gcd(a, b)
+    """
+
     (gcd, r) = (a, b)  # becomes gcd(a, b)
     (ac, s) = (1, 0)   # the coefficient of a
     (bc, t) = (0, 1)   # the coefficient of b
@@ -49,13 +58,15 @@ def extended_gcd(a, b) -> Tuple[int, int, int]:
 
 
 def modular_inverse(n: int, modulus: int) -> int:
-    (nc, modulusc, gcd) = extended_gcd(n, modulus)
+    """Calculate the modular inverse of 'n' modulo 'modulus'."""
+    (nc, _modulusc, gcd) = extended_gcd(n, modulus)
     if gcd != 1:
         raise ValueError("The modular inverse does not exist.")
     return nc
 
 
-def calculate_d(e: int, p: int, q: int):
+def calculate_d(p: int, q: int, e: int) -> int:
+    """Given p, q, and e; calculate d."""
     carmichael_lambda = math.lcm(p - 1, q - 1)
     d = modular_inverse(e, carmichael_lambda)
     assert (e * d) % carmichael_lambda == 1
@@ -68,6 +79,7 @@ def calculate_d(e: int, p: int, q: int):
 
 
 def calculate_iqmp(p: int, q: int):
+    """Given p and q, calculate the modular inverse of q modulo p."""
     return modular_inverse(q, p)
 
 

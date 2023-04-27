@@ -1,4 +1,4 @@
-"""Types for representing OpenSSH RSA keys, and corresponding read/write functionality.
+"""Types for representing OpenSSH RSA keys and functions to read and write them.
 
 References:
 - https://github.com/openssh/openssh-portable/blob/master/PROTOCOL.key

@@ -9,12 +9,14 @@ This implementation only handles unencrypted private keys (i.e., keys without a 
 
 import argparse
 
-from openssh_key_types import find_ssh_rsa_keys_in_file, PublicKeyFound, PrivateKeyBlockFound, write_public_key, \
-    write_private_key_block
+from openssh_key_types import find_ssh_rsa_keys_in_file, PublicKeyFound, PrivateKeyBlockFound
 
 
 def count_digits(n: int, base: int) -> int:
-    """Count the digits in a number."""
+    """Count the digits in a number.
+
+    Note that this routine returns 0 for the number of digits in the integer 0.
+    """
     digits = 0
     while n != 0:
         n //= base

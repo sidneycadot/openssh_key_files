@@ -1,15 +1,16 @@
 #! /usr/bin/env -S python3 -B
 
+"""Given a public key, find the corresponding private key."""
+
 import argparse
 import contextlib
-from typing import Optional
 
 from rsa_math import factor, calculate_d, calculate_iqmp
 from openssh_key_types import find_ssh_rsa_keys_in_file, PublicKeyFound, PrivateKey, PublicKeyList, PrivateKeyList, PrivateKeyBlock, write_private_key_block
 
 
 def main():
-
+    """Main function."""
     parser = argparse.ArgumentParser()
 
     parser.add_argument("filename")
@@ -20,7 +21,7 @@ def main():
     with contextlib.ExitStack() as exit_stack:
 
         fo = None  # We will only open the output file if needed.
-        fi = exit_stack.enter_context(open(args.filename, "r"))
+        fi = exit_stack.enter_context(open(args.filename, "r", encoding="utf-8"))
 
         for found in find_ssh_rsa_keys_in_file(fi):
             if not isinstance(found, PublicKeyFound):
@@ -35,7 +36,7 @@ def main():
             print("Factoring a {}-digit number ...".format(len(str(n))))
             (p, q) = factor(n)
 
-            d = calculate_d(e, p, q)
+            d = calculate_d(p, q, e)
             iqmp = calculate_iqmp(p, q)
 
             private_key = PrivateKey(
@@ -71,7 +72,7 @@ def main():
                     private_key_filename = args.filename[:-4] + ".cracked"
                 else:
                     private_key_filename = args.filename + ".cracked"
-                fo = exit_stack.enter_context(open(private_key_filename, "w"))
+                fo = exit_stack.enter_context(open(private_key_filename, "w", encoding="utf-8"))
 
             write_private_key_block(fo, private_key_block)
             print("Wrote private key file '{:s}' ({:d} bytes).".format(private_key_filename, fo.tell()))
