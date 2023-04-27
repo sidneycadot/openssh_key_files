@@ -13,14 +13,17 @@ from openssh_key_types import find_ssh_rsa_keys_in_file, PublicKeyFound, Private
 
 
 def count_digits(n: int, base: int) -> int:
-    """Count the digits in a number.
+    """Count the digits in a number."""
 
-    Note that this routine returns 0 for the number of digits in the integer 0.
-    """
+    if n == 0:
+        # Special case.
+        return 1
+
     digits = 0
     while n != 0:
         n //= base
         digits += 1
+
     return digits
 
 
