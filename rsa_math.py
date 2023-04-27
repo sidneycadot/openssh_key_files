@@ -22,7 +22,7 @@ def next_prime(n: int) -> int:
 
 
 def factor(n):
-    """TODO: insert quantum computer right about here."""
+    """TODO: Insert quantum computer right about here."""
     p = 2
     while n % p != 0:
         p = next_prime(p)
@@ -51,14 +51,32 @@ def extended_gcd(a, b) -> Tuple[int, int, int]:
 def modular_inverse(n: int, modulus: int) -> int:
     (nc, modulusc, gcd) = extended_gcd(n, modulus)
     if gcd != 1:
-        raise ValueError("Modular inverse does not exist.")
+        raise ValueError("The modular inverse does not exist.")
     return nc
 
 
 def calculate_d(e: int, p: int, q: int):
     carmichael_lambda = math.lcm(p - 1, q - 1)
-    return modular_inverse(e, carmichael_lambda)
+    d = modular_inverse(e, carmichael_lambda)
+    assert (e * d) % carmichael_lambda == 1
+    #print("p", p)
+    #print("q", q)
+    #print("d", d)
+    #print("e", e)
+    #print("carm", carmichael_lambda)
+    return d
 
 
 def calculate_iqmp(p: int, q: int):
     return modular_inverse(q, p)
+
+
+def powermod(a: int, b: int, modulus: int):
+    """Calculate (a ** b) % modulus, somewhat efficiently."""
+    r = 1
+    while b != 0:
+        if b % 2 != 0:
+            r = (r * a) % modulus
+        a = (a * a) % modulus
+        b //= 2
+    return r
